@@ -1,4 +1,4 @@
-import React, {useEffect} from "react";
+import React, {useState, useEffect} from "react";
 
 function useQuote(name) {
     const message = `Stock Selected, ${name}`;
@@ -21,6 +21,7 @@ function useQuote(name) {
         }
 
         const data = await res.json();
+        console.log(data)
         setQuote(data);
       } catch (err) {
         setError(err.message);
@@ -35,4 +36,4 @@ function useQuote(name) {
   return { quote, loading, error };
 }
 
-export default MessageBox;
+export default useQuote;
