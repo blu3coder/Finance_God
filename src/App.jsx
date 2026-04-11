@@ -11,13 +11,15 @@ import DateRange from '/src/DateRange.jsx'
 export default function App() {
   const [stockName, setStockName] = useState("FAKEPACA");
   const [selectedDate, setSelectedDate] =useState("1Day");
+  const [selectedTimeframe, setTimeframe] = useState("15Min");
   return (
     <div>
       <h1>My App</h1>
       <DropDown setSelected={setStockName}/>
       <DateRange setSelectedDate={setSelectedDate}/>
+      <TimeRange dateRange={setSelectedDate} setTimeframe={setTimeframe} />
       <AlpacaSocket>
-      <CandleChart stockName={stockName} dateRange={selectedDate}/>
+      <CandleChart stockName={stockName} dateRange={selectedDate} timeframe={selectedTimeframe}/>
       </AlpacaSocket>
       
 

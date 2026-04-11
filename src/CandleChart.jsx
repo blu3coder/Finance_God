@@ -12,10 +12,6 @@ export default function CandleChart({ stockName, timeframe="15min", dateRange = 
   const [candles, setCandles] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
-  const [fiveMinCandles, setFiveMinCandles] = useState({});
-  const [FifteenMinCandle, set15MinCandles] = useState({});
-  const [ThirtyMinCandle, set30MinCandles] = useState({});
-  const [HourMinCandle, setHourMinCandles] = useState({});
 
   // create chart once
   useEffect(() => {
