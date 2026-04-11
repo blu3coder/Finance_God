@@ -5,17 +5,19 @@ import './App.css'
 import DropDown from './DropDown'
 import CandleChart from './CandleChart'
 import CandleMacdChart  from './CandleMacdChart'
-import AlpacaSocket from './AlpacaConnection'
+import AlpacaSocket from "/src/AlpacaConnection.jsx"
+import DateRange from '/src/DateRange.jsx'
 
 export default function App() {
-  const [stockName, setStockName] = useState("NVDX");
+  const [stockName, setStockName] = useState("FAKEPACA");
+  const [selectedDate, setSelectedDate] =useState("1Day");
   return (
     <div>
       <h1>My App</h1>
-      <DropDown />
-
+      <DropDown setSelected={setStockName}/>
+      <DateRange setSelectedDate={setSelectedDate}/>
       <AlpacaSocket>
-      <CandleChart stockName={stockName}/>
+      <CandleChart stockName={stockName} dateRange={selectedDate}/>
       </AlpacaSocket>
       
 

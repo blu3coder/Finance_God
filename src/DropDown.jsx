@@ -6,7 +6,7 @@ import {
   LineSeries,
 } from "lightweight-charts";
 
-function DropDown(){
+function DropDown({setStockName}){
     
     const [selected, setSelected] =  useState("NVDX");
 
@@ -14,7 +14,7 @@ function DropDown(){
         <div>
             <h3>Choose an option:</h3>
 
-            <select value={selected} onChange={(e) => setSelected(e.target.value)}>
+            <select value={selected} onChange={(e) => setStockName(e.target.value)}>
                 <option value="NVDX">NVDX</option>
                 <option value="NVDQ">NVDQ</option>
                 <option value="IONQ">IONQ</option>

@@ -1,26 +1,28 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createChart, CandlestickSeries } from "lightweight-charts";
-import useQuote from "./MessagBox";
-import ErrorBoundary from "./ErrorBoundary";
+import { DateTime } from "luxon";
 import { useAlSocketInfo } from "./AlpacaConnection";
 
-export default function CandleChart({ stockName }) {
-  const chartContainerRef = useRef(null); //points to the html div in the page later in jsx <div ref=chartcontainer ref / mounting  / measuring wifth and height / resize logic
-  const chartRef = useRef(null); //ref that stores the chart instace so it survives re renders - the actual chart object //chart wide options / time scale methods /removing the chart
-  const candleSeriesRef = useRef(null); //points to the candle series object inside the chart - this is the part of the chart where candle datagoes //seting candle data //updating live candles
+export default function CandleChart({ stockName, timeframe="15min", dateRange = "1Day" }) {
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
+  const candleSeriesRef = useRef(null);
 
-  const [returnedValue, setReturnedValue] = useState("");
-  const [isLoud, setIsLoud] = useState(false);
-  const { quote, loading, error } = useQuote(stockName);
-  const { dictStock, status, closeWs } = useAlSocketInfo();
+  const { dictStock, closeWs } = useAlSocketInfo();
   const [candles, setCandles] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [fiveMinCandles, setFiveMinCandles] = useState({});
+  const [FifteenMinCandle, set15MinCandles] = useState({});
+  const [ThirtyMinCandle, set30MinCandles] = useState({});
+  const [HourMinCandle, setHourMinCandles] = useState({});
 
-  // Create chart only once
+  // create chart once
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
     const chart = createChart(chartContainerRef.current, {
-      width: 700,
+      width: chartContainerRef.current.clientWidth || 700,
       height: 400,
       layout: {
         background: { color: "#ffffff" },
@@ -36,7 +38,7 @@ export default function CandleChart({ stockName }) {
         visible: true,
         timeVisible: true,
         secondsVisible: true,
-        barSpacing: 40,
+        barSpacing: 10,
       },
       grid: {
         vertLines: { color: "#eeeeee" },
@@ -49,25 +51,12 @@ export default function CandleChart({ stockName }) {
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
 
-    // optional starter candle
-    candleSeries.setData([
-      {
-        time: 1711099800,
-        open: 0,
-        high: 0,
-        low: 0,
-        close: 0,
-      },
-    ]);
-
-    chart.timeScale().fitContent();
-
     const resizeObserver = new ResizeObserver(() => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-        });
-      }
+      if (!chartContainerRef.current || !chartRef.current) return;
+
+      chartRef.current.applyOptions({
+        width: chartContainerRef.current.clientWidth,
+      });
     });
 
     resizeObserver.observe(chartContainerRef.current);
@@ -80,68 +69,272 @@ export default function CandleChart({ stockName }) {
     };
   }, []);
 
-  // Update chart when dictStock changes
+  // load historical candles whenever symbol or date range changes
   useEffect(() => {
-    const bars = dictStock?.["FAKEPACA"];
-    if (!bars || bars.length === 0) return;
-    if (!candleSeriesRef.current) return;
+    let ignore = false;
 
-    const bar = bars[bars.length - 1];
+    async function loadHistoricalData() {
+      try {
+        setHistoryLoading(true);
+        setHistoryError("");
 
-    if (!bar?.t) return;
+        const history = await getHistoricalBars(stockName, dateRange, timeframe);
 
-    const newCandle = {
-      time: Math.floor(new Date(bar.t).getTime() / 1000),
-      open: Number(bar.o ?? 0),
-      high: Number(bar.h ?? 0),
-      low: Number(bar.l ?? 0),
-      close: Number(bar.c ?? 0),
-    };
-
-    if (!Number.isFinite(newCandle.time)) {
-      console.log("bad candle time", newCandle, bar);
-      return;
+        if (!ignore) {
+          setCandles(history);
+          
+        }
+      } catch (err) {
+        if (!ignore) {
+          setHistoryError(err.message || "Failed to load historical data");
+          setCandles([]);
+        }
+      } finally {
+        if (!ignore) {
+          setHistoryLoading(false);
+        }
+      }
     }
 
-    setCandles((prev) => {
-      if (prev.length === 0) {
-        return [newCandle];
-      }
+    loadHistoricalData();
 
-      const last = prev[prev.length - 1];
+    return () => {
+      ignore = true;
+    };
+  }, [stockName, dateRange, timeframe]);
 
-      // same time -> replace last candle
-      if (last.time === newCandle.time) {
-        return [...prev.slice(0, -1), newCandle];
-      }
-
-      // newer time -> append
-      if (newCandle.time > last.time) {
-        return [...prev, newCandle];
-      }
-
-      // older time -> ignore
-      return prev;
-    });
-
-    // update chart immediately with ONE candle
-    candleSeriesRef.current.update(newCandle);
-  }, [dictStock]);
-
+  // merge newest live websocket bar into candles
   useEffect(() => {
-    console.log("candles updated", candles);
+  const bars = dictStock?.[stockName];
+  if (!bars || bars.length === 0) return;
+
+  const latestBar = bars[bars.length - 1];
+  if (!latestBar?.t) return;
+
+  setCandles((prev) => updateAggregatedCandles(prev, latestBar, timeframe));
+}, [dictStock, stockName, timeframe]);
+
+  // draw all candles currently in state
+  useEffect(() => {
+    if (!candleSeriesRef.current) return;
+
+    candleSeriesRef.current.setData(candles);
+
+    if (candles.length > 0) {
+      chartRef.current?.timeScale().fitContent();
+    }
   }, [candles]);
 
   return (
-    <div
-      ref={chartContainerRef}
-      style={{
-        width: "700px",
-        height: "400px",
-      }}
-    >
-      <button onClick={closeWs}>Close connection</button>
-      <p>Value: {returnedValue}</p>
+    <div>
+      <div
+        ref={chartContainerRef}
+        style={{
+          width: "700px",
+          height: "400px",
+        }}
+      />
+
+      <div style={{ marginTop: "12px" }}>
+        <button onClick={closeWs}>Close connection</button>
+      </div>
+
+      <p>Symbol: {stockName}</p>
+      <p>Range: {dateRange}</p>
+      <p>History loading: {historyLoading ? "yes" : "no"}</p>
+      {historyError && <p style={{ color: "red" }}>{historyError}</p>}
     </div>
   );
 }
+
+async function getHistoricalBars(symbol, dateRange = "1Day", timeframe2) {
+  const { startISO, endISO, timeframe } = getRangeConfig(dateRange, timeframe2);
+
+  const params = new URLSearchParams({
+    symbols: "NVDX",
+    timeframe,
+    start: startISO,
+    end: endISO,
+    limit: "10000",
+    sort: "asc",
+    feed: "iex",
+  });
+  console.log("startISO:", startISO);
+  console.log("endISO:", endISO);
+  console.log("timeframe:", timeframe);
+
+  const url = `https://data.alpaca.markets/v2/stocks/bars?${params.toString()}`;
+  console.log("url ",url);
+  const response = await fetch(url, {
+    headers: {
+      "APCA-API-KEY-ID": import.meta.env.VITE_ALPACA_KEY,
+      "APCA-API-SECRET-KEY": import.meta.env.VITE_ALPACA_SECRET,
+    },
+  });
+  console.log(response);
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log("Json data: ", data)
+  const bars = data.bars?.["NVDX"] ?? [];
+  console.log("bars: ",bars)
+
+  return bars.map((bar) => ({
+    time: Math.floor(new Date(bar.t).getTime() / 1000),
+    open: Number(bar.o ?? 0),
+    high: Number(bar.h ?? 0),
+    low: Number(bar.l ?? 0),
+    close: Number(bar.c ?? 0),
+  }));
+}
+
+function getRangeConfig(dateRange, timeframe2) {
+  const nowNY = DateTime.now().setZone("America/New_York");
+
+  let startNY;
+  let timeframe = timeframe2;
+
+  switch (dateRange) {
+    case "1Day":
+      startNY = nowNY.minus({ days: 1 }).set({
+        hour: 20,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      });
+      timeframe = "1Min";
+      break;
+
+    case "1Week":
+      startNY = nowNY.minus({ days: 7 }).set({
+        hour: 20,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      });
+      timeframe = "5Min";
+      break;
+
+    case "1Month":
+      startNY = nowNY.minus({ months: 1 }).set({
+        hour: 20,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      });
+      timeframe = "15Min";
+      break;
+
+    case "1Year":
+      startNY = nowNY.minus({ years: 1 }).set({
+        hour: 20,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      });
+      timeframe = "1Day";
+      break;
+
+    case "YTD":
+      startNY = nowNY.startOf("year").set({
+        hour: 20,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      });
+      timeframe = "1Day";
+      break;
+
+    default:
+      startNY = nowNY.minus({ days: 1 }).set({
+        hour: 20,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      });
+      timeframe = "1Min";
+  }
+
+  return {
+    startISO: startNY.toUTC().toISO(),
+    endISO: nowNY.toUTC().toISO(),
+    timeframe,
+  };
+}
+
+function floorToXMinuteBucket(unixSeconds, timeframe) {
+  let bucketSize;
+
+  switch (timeframe) {
+    case "5Min":
+      bucketSize = 5 * 60;
+      break;
+    case "15Min":
+      bucketSize = 15 * 60;
+      break;
+    case "30Min":
+      bucketSize = 30 * 60;
+      break;
+    case "1Hr":
+      bucketSize = 60 * 60;
+      break;
+    case "4Hr":
+      bucketSize = 4 * 60 * 60;
+      break;
+    case "1Min":
+    default:
+      bucketSize = 60;
+      break;
+  }
+
+  return Math.floor(unixSeconds / bucketSize) * bucketSize;
+}
+
+
+function updateAggregatedCandles(prevCandles, oneMinuteBar, timeframe) {
+  const rawTime = Math.floor(new Date(oneMinuteBar.t).getTime() / 1000);
+  if (!Number.isFinite(rawTime)) return prevCandles;
+
+  const bucketTime = floorToXMinuteBucket(rawTime, timeframe);
+
+  const incomingAggregatedCandle = {
+    time: bucketTime,
+    open: Number(oneMinuteBar.o ?? 0),
+    high: Number(oneMinuteBar.h ?? 0),
+    low: Number(oneMinuteBar.l ?? 0),
+    close: Number(oneMinuteBar.c ?? 0),
+    volume: Number(oneMinuteBar.v ?? 0),
+  };
+
+  if (prevCandles.length === 0) {
+    return [incomingAggregatedCandle];
+  }
+
+  const last = prevCandles[prevCandles.length - 1];
+
+  // same bucket -> update last aggregated candle
+  if (last.time === bucketTime) {
+    const updatedLast = {
+      ...last,
+      high: Math.max(last.high, incomingAggregatedCandle.high),
+      low: Math.min(last.low, incomingAggregatedCandle.low),
+      close: incomingAggregatedCandle.close,
+      volume: (last.volume ?? 0) + (incomingAggregatedCandle.volume ?? 0),
+    };
+
+    return [...prevCandles.slice(0, -1), updatedLast];
+  }
+
+  // new bucket -> append new aggregated candle
+  if (bucketTime > last.time) {
+    return [...prevCandles, incomingAggregatedCandle];
+  }
+
+  // older bar -> ignore
+  return prevCandles;
+}
+
+
