@@ -9,6 +9,8 @@ export default function AlpacaSocket({children}) {
   const [status, setStatus] = useState("disconnected");
   const [logs, setLogs] = useState([]);
   const [dictStock, setDictStock] = useState({ FAKEPACA: [], NVDX: [], NVDZ:[], IONQ: [], IONZ:[], QBTS: [], QBTZ:[] })
+  const [dictTradeStock, setDictTradeStock] = useState({ FAKEPACA: [], NVDX: [], NVDZ:[], IONQ: [], IONZ:[], QBTS: [], QBTZ:[] })
+  const [dictQuoteStock, setDictQuoteStock] = useState({ FAKEPACA: [], NVDX: [], NVDZ:[], IONQ: [], IONZ:[], QBTS: [], QBTZ:[] })
   const [leng, setLength] = useState(0);
   
   useEffect(() => {
@@ -32,6 +34,18 @@ export default function AlpacaSocket({children}) {
 
       // Alpaca sends arrays of messages
       for (const msg of data) {
+        if (msg.T === "t"){
+            console.log("inside t");
+            setDictTradeStock((prev) => ({ ...prev, [stockName]: [...(prev[stockName] || []), msg]}));
+            
+            console.log(data);
+        }
+        if (msg.T === "q"){
+            console.log("inside q");
+            setDictQuoteStock((prev) => ({ ...prev, [stockName]: [...(prev[stockName] || []), msg]}));
+            
+            console.log(data);
+        }
         if (msg.T === "b"){
             console.log("inside b");
             setDictStock((prev) => ({ ...prev, [stockName]: [...(prev[stockName] || []), msg]}));
@@ -63,8 +77,8 @@ export default function AlpacaSocket({children}) {
           ws.send(
             JSON.stringify({
               action: "subscribe",
-            //   trades: ["FAKEPACA"],
-            //   quotes: ["FAKEPACA"],
+              trades: ["FAKEPACA"],
+              quotes: ["FAKEPACA"],
               bars: ["FAKEPACA"],
             })
           );
@@ -114,7 +128,7 @@ export default function AlpacaSocket({children}) {
   }
 
   return (
-    <socketContext.Provider value={{dictStock, status, closeWs}}>
+    <socketContext.Provider value={{dictTradeStock, dictQuoteStock, dictStock, status, closeWs}}>
         {children}
     </socketContext.Provider>
   )

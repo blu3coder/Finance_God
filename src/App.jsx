@@ -7,6 +7,7 @@ import CandleChart from './CandleChart'
 import CandleMacdChart  from './CandleMacdChart'
 import AlpacaSocket from "/src/AlpacaConnection.jsx"
 import DateRange from '/src/DateRange.jsx'
+import { SideVolumeProfile } from './SideVolumeProfile'
 
 export default function App() {
   const [stockName, setStockName] = useState("FAKEPACA");
@@ -20,6 +21,7 @@ export default function App() {
       <TimeRange dateRange={setSelectedDate} setTimeframe={setTimeframe} />
       <AlpacaSocket>
       <CandleChart stockName={stockName} dateRange={selectedDate} timeframe={selectedTimeframe}/>
+      <SideVolumeProfile />
       </AlpacaSocket>
       
 
