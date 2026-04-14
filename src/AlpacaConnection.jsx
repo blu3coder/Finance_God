@@ -126,6 +126,7 @@ export default function AlpacaSocket({children}) {
     const ws = socketRef.current;
     if (ws) ws.close();
   }
+   console.log("dropdown");
 
   return (
     <socketContext.Provider value={{dictTradeStock, dictQuoteStock, dictStock, status, closeWs}}>

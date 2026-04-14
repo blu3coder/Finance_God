@@ -9,7 +9,7 @@ import {
 function DropDown({setStockName}){
     
     const [selected, setSelected] =  useState("NVDX");
-
+    console.log("dropdown");
     return (
         <div>
             <h3>Choose an option:</h3>

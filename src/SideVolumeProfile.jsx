@@ -1,13 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useAlSocketInfo } from "./src/AlpacaConnection";
+import React, { useEffect, useMemo, useRef, useState } from "/node_modules/react";
+import { useAlSocketInfo } from "/src/AlpacaConnection.jsx";
 
 export function SideVolumeProfile({
   stockName,
   timeframe = "15min",
   dateRange = "1Day",
   bucketSize = 0.05,
-  liveTrade = null,
-  liveQuote = null,
 }) {
     const { dictTradeStock, dictQuoteStock } = useAlSocketInfo();
     const [historicalTrades, setHistoricalTrades] = useState([]);

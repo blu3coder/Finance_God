@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState } from '/node_modules/react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
@@ -7,7 +7,9 @@ import CandleChart from './CandleChart'
 import CandleMacdChart  from './CandleMacdChart'
 import AlpacaSocket from "/src/AlpacaConnection.jsx"
 import DateRange from '/src/DateRange.jsx'
-import { SideVolumeProfile } from './SideVolumeProfile'
+import { SideVolumeProfile } from '/src/SideVolumeProfile.jsx'
+import TimeframeRange from '/src/TimeframeRange.jsx'
+
 
 export default function App() {
   const [stockName, setStockName] = useState("FAKEPACA");
@@ -16,9 +18,10 @@ export default function App() {
   return (
     <div>
       <h1>My App</h1>
+      
       <DropDown setSelected={setStockName}/>
       <DateRange setSelectedDate={setSelectedDate}/>
-      <TimeRange dateRange={setSelectedDate} setTimeframe={setTimeframe} />
+      <TimeframeRange dateRange={setSelectedDate} setTimeframe={setTimeframe} />
       <AlpacaSocket>
       <CandleChart stockName={stockName} dateRange={selectedDate} timeframe={selectedTimeframe}/>
       <SideVolumeProfile />

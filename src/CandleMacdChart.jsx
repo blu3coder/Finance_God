@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { historicalData } from "/src/historicalData.js";
 import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
 } from "lightweight-charts";
+import { useAlSocketInfo } from "./AlpacaConnection";
 
 function ema(values, period) {
   const k = 2 / (period + 1);
@@ -28,92 +30,155 @@ function computeMACD(closes, fast = 12, slow = 26, signal = 9) {
   return { macdLine, signalLine, hist };
 }
 
-function makeDummyOHLC(count = 140) {
-  const start = Math.floor(Date.now() / 1000) - count * 60 * 15; // 15-min bars
-  let price = 16.8;
-  const bars = [];
+function updateAggregatedCandles(prevCandles, oneMinuteBar, timeframe) {
+  const rawTime = Math.floor(new Date(oneMinuteBar.t).getTime() / 1000);
+  if (!Number.isFinite(rawTime)) return prevCandles;
 
-  for (let i = 0; i < count; i++) {
-    const t = start + i * 60 * 15;
+  const bucketTime = floorToXMinuteBucket(rawTime, timeframe);
 
-    const drift = i < 70 ? -0.02 : 0.015;
-    const noise = (Math.sin(i * 0.7) + Math.cos(i * 0.17)) * 0.01;
+  const incomingAggregatedCandle = {
+    time: bucketTime,
+    open: Number(oneMinuteBar.o ?? 0),
+    high: Number(oneMinuteBar.h ?? 0),
+    low: Number(oneMinuteBar.l ?? 0),
+    close: Number(oneMinuteBar.c ?? 0),
+    volume: Number(oneMinuteBar.v ?? 0),
+  };
 
-    const open = price;
-    let close = price + drift + noise;
-
-    if (i > 35 && i < 50) close -= 0.03;
-
-    const high = Math.max(open, close) + 0.05 + Math.abs(Math.sin(i)) * 0.02;
-    const low = Math.min(open, close) - 0.05 - Math.abs(Math.cos(i)) * 0.02;
-
-    const volume = Math.floor(
-      80000 + Math.abs(Math.sin(i * 0.4)) * 180000 + (i > 35 && i < 55 ? 220000 : 0)
-    );
-
-    bars.push({
-      time: t,
-      open: Number(open.toFixed(2)),
-      high: Number(high.toFixed(2)),
-      low: Number(low.toFixed(2)),
-      close: Number(close.toFixed(2)),
-      volume,
-    });
-
-    price = close;
+  if (prevCandles.length === 0) {
+    return [incomingAggregatedCandle];
   }
 
-  return bars;
+  const last = prevCandles[prevCandles.length - 1];
+
+  // same bucket -> update last aggregated candle
+  if (last.time === bucketTime) {
+    const updatedLast = {
+      ...last,
+      high: Math.max(last.high, incomingAggregatedCandle.high),
+      low: Math.min(last.low, incomingAggregatedCandle.low),
+      close: incomingAggregatedCandle.close,
+      volume: (last.volume ?? 0) + (incomingAggregatedCandle.volume ?? 0),
+    };
+
+    return [...prevCandles.slice(0, -1), updatedLast];
+  }
+
+  // new bucket -> append new aggregated candle
+  if (bucketTime > last.time) {
+    return [...prevCandles, incomingAggregatedCandle];
+  }
+
+  // older bar -> ignore
+  return prevCandles;
 }
 
-export default function CandleMacdChart() {
+function floorToXMinuteBucket(unixSeconds, timeframe) {
+  let bucketSize;
+
+  switch (timeframe) {
+    case "5Min":
+      bucketSize = 5 * 60;
+      break;
+    case "15Min":
+      bucketSize = 15 * 60;
+      break;
+    case "30Min":
+      bucketSize = 30 * 60;
+      break;
+    case "1Hr":
+      bucketSize = 60 * 60;
+      break;
+    case "4Hr":
+      bucketSize = 4 * 60 * 60;
+      break;
+    case "1Min":
+    default:
+      bucketSize = 60;
+      break;
+  }
+
+  return Math.floor(unixSeconds / bucketSize) * bucketSize;
+}
+
+
+
+export default function CandleMacdChart(stockName, dateRange, timeframe) {
+  const { dictStock } = useAlSocketInfo();
   const topRef = useRef(null);
   const bottomRef = useRef(null);
 
-  const data = useMemo(() => makeDummyOHLC(160), []);
-  const closes = useMemo(() => data.map((d) => d.close), [data]);
-  const macd = useMemo(() => computeMACD(closes, 12, 26, 9), [closes]);
+    const [candles, setCandles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const candleData = useMemo(
-    () =>
-      data.map((d) => ({
-        time: d.time,
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-      })),
-    [data]
-  );
+    useEffect(() => {
+    async function loadBars() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const bars = await historicalData("NVDX", "bars", dateRange, timeframe);
+        setCandles(bars);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load historical bars");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadBars();
+  }, [stockName,dateRange,timeframe]);
+
+  useEffect(() => {
+    const bars = dictStock?.[stockName];
+    if (!bars || bars.length === 0) return;
+
+    const latestBar = bars[bars.length - 1];
+    if (!latestBar?.t) return;
+
+    setCandles((prev) => updateAggregatedCandles(prev, latestBar, timeframe));
+  }, [dictStock, stockName, timeframe]);
+  
+  const closes = useMemo(() => candles.map((c) => c.close), [candles]);
+  const macd = useMemo(() => {
+    if (closes.length === 0) {
+      return { macdLine: [], signalLine: [], hist: [] };
+    }
+    return computeMACD(closes, 12, 26, 9);
+  }, [closes]);
+
+  
 
   const volumeData = useMemo(
     () =>
-      data.map((d) => ({
+      candles.map((c) => ({
         time: d.time,
         value: d.volume,
         color: d.close >= d.open ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)",
       })),
-    [data]
+    [candles]
   );
 
   const macdLineData = useMemo(
-    () => data.map((d, i) => ({ time: d.time, value: macd.macdLine[i] })),
-    [data, macd]
+    () => candles.map((c, i) => ({ time: c.time, value: macd.macdLine[i] })),
+    [candles, macd]
   );
 
   const signalLineData = useMemo(
-    () => data.map((d, i) => ({ time: d.time, value: macd.signalLine[i] })),
-    [data, macd]
+    () => candles.map((c, i) => ({ time: c.time, value: macd.signalLine[i] })),
+    [candles, macd]
   );
 
   const macdHistData = useMemo(
     () =>
-      data.map((d, i) => ({
-        time: d.time,
+      candles.map((c, i) => ({
+        time: c.time,
         value: macd.hist[i],
         color: macd.hist[i] >= 0 ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)",
       })),
-    [data, macd]
+    [candles, macd]
   );
 
   useEffect(() => {
@@ -129,14 +194,6 @@ export default function CandleMacdChart() {
       crosshair: { mode: 1 },
     });
 
-    const candleSeries = topChart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      borderUpColor: "#22c55e",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
-    });
 
     const volumeSeries = topChart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
@@ -144,7 +201,6 @@ export default function CandleMacdChart() {
       scaleMargins: { top: 0.8, bottom: 0 },
     });
 
-    candleSeries.setData(candleData);
     volumeSeries.setData(volumeData);
 
     // ---- BOTTOM CHART (MACD)
@@ -209,7 +265,7 @@ export default function CandleMacdChart() {
       topChart.remove();
       bottomChart.remove();
     };
-  }, [candleData, volumeData, macdHistData, macdLineData, signalLineData]);
+  }, [volumeData, macdHistData, macdLineData, signalLineData]);
 
   return (
   <div style={{ background: "#f9fafb" }}>

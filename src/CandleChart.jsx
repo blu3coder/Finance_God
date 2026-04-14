@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createChart, CandlestickSeries } from "lightweight-charts";
 import { DateTime } from "luxon";
 import { useAlSocketInfo } from "./AlpacaConnection";
+import CandleMacdChart from "./CandleMacdChart";
 
 export default function CandleChart({ stockName, timeframe="15min", dateRange = "1Day" }) {
   const chartContainerRef = useRef(null);
@@ -130,6 +131,8 @@ export default function CandleChart({ stockName, timeframe="15min", dateRange = 
           height: "400px",
         }}
       />
+
+      <CandleMacdChart stockName={stockName} dateRange={dateRange} timeframe={timeframe}/>
 
       <div style={{ marginTop: "12px" }}>
         <button onClick={closeWs}>Close connection</button>
