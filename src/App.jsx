@@ -1,4 +1,4 @@
-import React, { useState } from '/node_modules/react'
+import React, { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
@@ -21,10 +21,11 @@ export default function App() {
       
       <DropDown setSelected={setStockName}/>
       <DateRange setSelectedDate={setSelectedDate}/>
-      <TimeframeRange dateRange={setSelectedDate} setTimeframe={setTimeframe} />
+      <TimeframeRange dateSelected={selectedDate} setTimeframe={setTimeframe} />
       <AlpacaSocket>
       <CandleChart stockName={stockName} dateRange={selectedDate} timeframe={selectedTimeframe}/>
-      <SideVolumeProfile />
+      <SideVolumeProfile stockName={stockName}/>
+      <CandleMacdChart dateRange={selectedDate} timeframe={selectedTimeframe} />
       </AlpacaSocket>
       
 

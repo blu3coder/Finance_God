@@ -1,3 +1,5 @@
+import { DateTime } from "luxon";
+
 export async function historicalData(stockName, specification, timeframe, dateRange) {
   if(specification == "trades"){
     getAllHistoricalTrades(stockName, dateRange);

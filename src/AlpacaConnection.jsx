@@ -129,7 +129,7 @@ export default function AlpacaSocket({children}) {
    console.log("dropdown");
 
   return (
-    <socketContext.Provider value={{dictTradeStock, dictQuoteStock, dictStock, status, closeWs}}>
+    <socketContext.Provider value={{ dictTradeStock, dictQuoteStock, dictStock, status, closeWs}}>
         {children}
     </socketContext.Provider>
   )

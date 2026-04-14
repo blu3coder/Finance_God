@@ -4,7 +4,7 @@ import { DateTime } from "luxon";
 import { useAlSocketInfo } from "./AlpacaConnection";
 import CandleMacdChart from "./CandleMacdChart";
 
-export default function CandleChart({ stockName, timeframe="15min", dateRange = "1Day" }) {
+export default function CandleChart({ stockName, timeframe, dateRange }) {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -109,7 +109,7 @@ export default function CandleChart({ stockName, timeframe="15min", dateRange = 
   if (!latestBar?.t) return;
 
   setCandles((prev) => updateAggregatedCandles(prev, latestBar, timeframe));
-}, [dictStock, stockName, timeframe]);
+}, [dictStock,dateRange, stockName, timeframe]);
 
   // draw all candles currently in state
   useEffect(() => {
@@ -132,7 +132,7 @@ export default function CandleChart({ stockName, timeframe="15min", dateRange = 
         }}
       />
 
-      <CandleMacdChart stockName={stockName} dateRange={dateRange} timeframe={timeframe}/>
+      
 
       <div style={{ marginTop: "12px" }}>
         <button onClick={closeWs}>Close connection</button>
@@ -146,7 +146,8 @@ export default function CandleChart({ stockName, timeframe="15min", dateRange = 
   );
 }
 
-async function getHistoricalBars(symbol, dateRange = "1Day", timeframe2) {
+async function getHistoricalBars(symbol, dateRange, timeframe2) {
+  console.log("timeframe before chnage: ", timeframe2);
   const { startISO, endISO, timeframe } = getRangeConfig(dateRange, timeframe2);
 
   const params = new URLSearchParams({
@@ -204,7 +205,6 @@ function getRangeConfig(dateRange, timeframe2) {
         second: 0,
         millisecond: 0,
       });
-      timeframe = "1Min";
       break;
 
     case "1Week":
@@ -214,7 +214,6 @@ function getRangeConfig(dateRange, timeframe2) {
         second: 0,
         millisecond: 0,
       });
-      timeframe = "5Min";
       break;
 
     case "1Month":
@@ -224,7 +223,6 @@ function getRangeConfig(dateRange, timeframe2) {
         second: 0,
         millisecond: 0,
       });
-      timeframe = "15Min";
       break;
 
     case "1Year":
@@ -234,7 +232,6 @@ function getRangeConfig(dateRange, timeframe2) {
         second: 0,
         millisecond: 0,
       });
-      timeframe = "1Day";
       break;
 
     case "YTD":
@@ -244,7 +241,6 @@ function getRangeConfig(dateRange, timeframe2) {
         second: 0,
         millisecond: 0,
       });
-      timeframe = "1Day";
       break;
 
     default:
@@ -254,7 +250,6 @@ function getRangeConfig(dateRange, timeframe2) {
         second: 0,
         millisecond: 0,
       });
-      timeframe = "1Min";
   }
 
   return {

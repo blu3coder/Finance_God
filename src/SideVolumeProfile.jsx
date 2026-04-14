@@ -1,36 +1,75 @@
-import React, { useEffect, useMemo, useRef, useState } from "/node_modules/react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { DateTime } from "luxon";
 import { useAlSocketInfo } from "/src/AlpacaConnection.jsx";
 
 export function SideVolumeProfile({
-  stockName,
+  stockName = "FAKEPACA",
   timeframe = "15min",
   dateRange = "1Day",
   bucketSize = 0.05,
 }) {
-    const { dictTradeStock, dictQuoteStock } = useAlSocketInfo();
-    const [historicalTrades, setHistoricalTrades] = useState([]);
-    const [historicalQuotes, setHistoricalQuotes] = useState([]);
+  const { dictTradeStock, dictQuoteStock } = useAlSocketInfo();
+
+  const [historicalTrades, setHistoricalTrades] = useState([]);
+  const [historicalQuotes, setHistoricalQuotes] = useState([]);
+  const [profileVersion, setProfileVersion] = useState(0);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+
   const quoteRef = useRef({});
   const profileRef = useRef({});
-  const [profileVersion, setProfileVersion] = useState(0);
+  const lastProcessedTradeTimeRef = useRef({});
 
-  // Build profile from historical data whenever symbol/history changes
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadHistoricalData() {
+      try {
+        setHistoryLoading(true);
+        setHistoryError("");
+
+        const historyTrades = await getAllHistoricalTrades(stockName, dateRange);
+        const historyQuotes = await getAllHistoricalQuotes(stockName, dateRange);
+
+        if (!ignore) {
+          setHistoricalTrades(historyTrades);
+          setHistoricalQuotes(historyQuotes);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setHistoryError(err.message || "Failed to load historical data");
+          setHistoricalTrades([]);
+          setHistoricalQuotes([]);
+        }
+      } finally {
+        if (!ignore) {
+          setHistoryLoading(false);
+        }
+      }
+    }
+
+    loadHistoricalData();
+
+    return () => {
+      ignore = true;
+    };
+  }, [stockName, dateRange]);
+
+  // Build profile from historical trades + historical quotes
   useEffect(() => {
     if (!stockName) return;
 
-    // Reset symbol profile
     profileRef.current[stockName] = {};
+    lastProcessedTradeTimeRef.current[stockName] = 0;
 
-    // Sort quotes and trades by time so matching is consistent
-    const sortedQuotes = [...historicalQuotes]
-      .filter((q) => q.S === stockName)
-      .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime());
+    const sortedQuotes = [...historicalQuotes].sort(
+      (a, b) => new Date(a.t).getTime() - new Date(b.t).getTime()
+    );
 
-    const sortedTrades = [...historicalTrades]
-      .filter((tr) => tr.S === stockName)
-      .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime());
+    const sortedTrades = [...historicalTrades].sort(
+      (a, b) => new Date(a.t).getTime() - new Date(b.t).getTime()
+    );
 
-    // Prime latest live quote cache with the last historical quote if present
     if (sortedQuotes.length > 0) {
       const lastQuote = sortedQuotes[sortedQuotes.length - 1];
       quoteRef.current[stockName] = {
@@ -40,6 +79,11 @@ export function SideVolumeProfile({
       };
     } else {
       quoteRef.current[stockName] = undefined;
+    }
+
+    if (sortedTrades.length > 0) {
+      const lastTrade = sortedTrades[sortedTrades.length - 1];
+      lastProcessedTradeTimeRef.current[stockName] = new Date(lastTrade.t).getTime();
     }
 
     buildProfileFromHistory(
@@ -52,61 +96,37 @@ export function SideVolumeProfile({
     setProfileVersion((v) => v + 1);
   }, [stockName, historicalTrades, historicalQuotes, bucketSize]);
 
-  useEffect(() => {
-      let ignore = false;
-  
-      async function loadHistoricalData() {
-        try {
-          setHistoryLoading(true);
-          setHistoryError("");
-  
-          const historyTrade = await getAllHistoricalTrades(stockName, dateRange);
-          const historyQuote = await getAllHistoricalQuotes(stockName, dateRange);
-  
-          if (!ignore) {
-            setHistoricalTrades(historyTrade);
-            setHistoricalQuotes(historyQuote);
-          }
-        } catch (err) {
-          if (!ignore) {
-            setHistoryError(err.message || "Failed to load historical data");
-            setHistoricalQuotes([]);
-            setHistoricalTrades([]);
-          }
-        } finally {
-          if (!ignore) {
-            setHistoryLoading(false);
-          }
-        }
-      }
-  
-      loadHistoricalData();
-
-      return () => {
-      ignore = true;
-    };
-  }, [stockName, dateRange]);
-
   // Handle incoming live quote
   useEffect(() => {
-    if (!dictQuoteStock || dictQuoteStock.S !== stockName) return;
+    const quotesForStock = dictQuoteStock?.[stockName];
+    if (!quotesForStock || quotesForStock.length === 0) return;
 
-    handleQuote(dictQuoteStock, quoteRef);
+    const latestQuote = quotesForStock[quotesForStock.length - 1];
+    if (!latestQuote) return;
+
+    handleQuote(latestQuote, quoteRef);
   }, [dictQuoteStock, stockName]);
 
   // Handle incoming live trade
   useEffect(() => {
-    if (!dictTradeStock|| dictTradeStock.S !== stockName) return;
+    const tradesForStock = dictTradeStock?.[stockName];
+    if (!tradesForStock || tradesForStock.length === 0) return;
+
+    const latestTrade = tradesForStock[tradesForStock.length - 1];
+    if (!latestTrade) return;
+
+    const latestTradeTime = new Date(latestTrade.t).getTime();
+    const lastProcessedTradeTime = lastProcessedTradeTimeRef.current[stockName] || 0;
+
+    if (latestTradeTime <= lastProcessedTradeTime) return;
 
     if (!profileRef.current[stockName]) {
       profileRef.current[stockName] = {};
     }
 
-    const trade = dictStock?.[stockName];
-    if (!trade || trade.length === 0) return;
-    const dictTradeStock = trade.
+    handleTrade(latestTrade, quoteRef, profileRef, bucketSize);
 
-    handleTrade(dictTradeStock, quoteRef, profileRef, bucketSize);
+    lastProcessedTradeTimeRef.current[stockName] = latestTradeTime;
     setProfileVersion((v) => v + 1);
   }, [dictTradeStock, stockName, bucketSize]);
 
@@ -122,6 +142,9 @@ export function SideVolumeProfile({
           timeframe: {timeframe} | range: {dateRange}
         </div>
       </div>
+
+      {historyLoading && <div>Loading historical data...</div>}
+      {historyError && <div style={{ color: "red" }}>{historyError}</div>}
 
       <SplitVolumeProfile profile={currentProfile} />
     </div>
@@ -140,15 +163,11 @@ async function fetchHistoricalTradesPage(stockName, dateRange, pageToken = "") {
     feed: "iex",
   });
 
-  console.log("startISO:", startISO);
-  console.log("endISO:", endISO);
-
   if (pageToken) {
     params.set("page_token", pageToken);
   }
 
   const url = `https://data.alpaca.markets/v2/stocks/trades?${params.toString()}`;
-  console.log("url", url);
 
   const response = await fetch(url, {
     headers: {
@@ -156,8 +175,6 @@ async function fetchHistoricalTradesPage(stockName, dateRange, pageToken = "") {
       "APCA-API-SECRET-KEY": import.meta.env.VITE_ALPACA_SECRET,
     },
   });
-
-  console.log(response);
 
   if (!response.ok) {
     throw new Error(`Historical trades request failed: ${response.status}`);
@@ -198,15 +215,11 @@ async function fetchHistoricalQuotesPage(stockName, dateRange, pageToken = "") {
     feed: "iex",
   });
 
-  console.log("startISO:", startISO);
-  console.log("endISO:", endISO);
-
   if (pageToken) {
     params.set("page_token", pageToken);
   }
 
   const url = `https://data.alpaca.markets/v2/stocks/quotes?${params.toString()}`;
-  console.log("quote url", url);
 
   const response = await fetch(url, {
     headers: {
@@ -214,8 +227,6 @@ async function fetchHistoricalQuotesPage(stockName, dateRange, pageToken = "") {
       "APCA-API-SECRET-KEY": import.meta.env.VITE_ALPACA_SECRET,
     },
   });
-
-  console.log(response);
 
   if (!response.ok) {
     throw new Error(`Historical quotes request failed: ${response.status}`);
@@ -253,8 +264,6 @@ function buildProfileFromHistory(trades, quotes, profile, bucketSize = 0.05) {
   for (const trade of trades) {
     const tradeTime = new Date(trade.t).getTime();
 
-    // Advance quote pointer until quote time is after trade time
-    // Keep the most recent quote at or before the trade
     while (
       quoteIndex < quotes.length &&
       new Date(quotes[quoteIndex].t).getTime() <= tradeTime
@@ -384,6 +393,8 @@ function floorToBucket(price, bucketSize) {
 }
 
 function handleQuote(q, quoteRef) {
+  if (!q?.S) return;
+
   quoteRef.current[q.S] = {
     bid: Number(q.bp),
     ask: Number(q.ap),
@@ -392,6 +403,8 @@ function handleQuote(q, quoteRef) {
 }
 
 function handleTrade(trade, quoteRef, profileRef, bucketSize = 0.05) {
+  if (!trade?.S) return;
+
   const symbol = trade.S;
   const quote = quoteRef.current[symbol];
 
@@ -417,10 +430,11 @@ function SplitVolumeProfile({ profile }) {
     }))
     .sort((a, b) => b.price - a.price);
 
-  const maxVol = Math.max(
-    ...rows.map((r) => Math.max(r.buy, r.sell)),
-    1
-  );
+  if (rows.length === 0) {
+    return <div>No profile rows yet</div>;
+  }
+
+  const maxVol = Math.max(...rows.map((r) => Math.max(r.buy, r.sell)), 1);
 
   return (
     <div>
