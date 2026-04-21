@@ -136,15 +136,15 @@ export function SideVolumeProfile({
 
   return (
     <div>
-      <div style={{ marginBottom: 12 }}>
+      {/* <div style={{ marginBottom: 12 }}>
         <strong>{stockName}</strong> split volume profile
         <div style={{ fontSize: 12, opacity: 0.7 }}>
           timeframe: {timeframe} | range: {dateRange}
         </div>
-      </div>
+      </div> */}
 
-      {historyLoading && <div>Loading historical data...</div>}
-      {historyError && <div style={{ color: "red" }}>{historyError}</div>}
+      {/* {historyLoading && <div>Loading historical data...</div>}
+      {historyError && <div style={{ color: "red" }}>{historyError}</div>} */}
 
       <SplitVolumeProfile profile={currentProfile} />
     </div>

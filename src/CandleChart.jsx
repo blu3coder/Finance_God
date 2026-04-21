@@ -124,6 +124,7 @@ export default function CandleChart({ stockName, timeframe, dateRange }) {
 
   return (
     <div>
+    
       <div
         ref={chartContainerRef}
         style={{
@@ -132,16 +133,10 @@ export default function CandleChart({ stockName, timeframe, dateRange }) {
         }}
       />
 
-      
 
-      <div style={{ marginTop: "12px" }}>
-        <button onClick={closeWs}>Close connection</button>
-      </div>
-
-      <p>Symbol: {stockName}</p>
-      <p>Range: {dateRange}</p>
-      <p>History loading: {historyLoading ? "yes" : "no"}</p>
-      {historyError && <p style={{ color: "red" }}>{historyError}</p>}
+      {/* <p>Symbol: {stockName}</p><p>Range: {dateRange}</p> */}
+      {/* <p>History loading: {historyLoading ? "yes" : "no"}</p>
+      {historyError && <p style={{ color: "red" }}>{historyError}</p>} */}
     </div>
   );
 }

@@ -20,7 +20,7 @@ export default function CandleMacdChart({ stockName = "NVDX", timeframe, dateRan
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth || 700,
-  height: 300,
+  height: 150,
   localization: {
     timeFormatter: (time) =>
       DateTime.fromSeconds(time, { zone: "America/New_York" }).toFormat("MM/dd HH:mm"),
@@ -29,6 +29,7 @@ export default function CandleMacdChart({ stockName = "NVDX", timeframe, dateRan
     visible: true,
     timeVisible: true,
     secondsVisible: true,
+    
     barSpacing: 10,
     tickMarkFormatter: (time) =>
       DateTime.fromSeconds(time, { zone: "America/New_York" }).toFormat("HH:mm"),
@@ -51,7 +52,7 @@ export default function CandleMacdChart({ stockName = "NVDX", timeframe, dateRan
       color: "#2962FF",
       lineWidth: 2,
       priceFormat: { type: "price", precision: 4, minMove: 0.0001 },
-      priceScaleId: "right",
+      priceScaleId: "overlay",
       lastValueVisible: true,
       crosshairMarkerVisible: true,
     });
@@ -133,8 +134,8 @@ export default function CandleMacdChart({ stockName = "NVDX", timeframe, dateRan
 
   return (
     <div>
-      <div ref={chartContainerRef} style={{ width: "700px", height: "300px" }} />
-      <p>Symbol: {stockName}</p>
+      <div ref={chartContainerRef} style={{ width: "700px", height: "50px" }} />
+      
       <p>Range: {dateRange}</p>
       <p>History loading: {historyLoading ? "yes" : "no"}</p>
       {historyError && <p style={{ color: "red" }}>{historyError}</p>}

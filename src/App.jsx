@@ -9,6 +9,8 @@ import AlpacaSocket from "/src/AlpacaConnection.jsx"
 import DateRange from '/src/DateRange.jsx'
 import { SideVolumeProfile } from '/src/SideVolumeProfile.jsx'
 import TimeframeRange from '/src/TimeframeRange.jsx'
+import { CloseConnection } from '/src/closeConnectionButton.jsx'
+import { intertwinedCharts } from './IntertwinedCharts'
 
 
 export default function App() {
@@ -23,10 +25,14 @@ export default function App() {
       <DateRange setSelectedDate={setSelectedDate}/>
       <TimeframeRange dateSelected={selectedDate} setTimeframe={setTimeframe} />
       <AlpacaSocket>
-      <CandleChart stockName={stockName} dateRange={selectedDate} timeframe={selectedTimeframe}/>
+      <intertwinedChart stockName={stockName} dateRange={selectedDate} timeframe={selectedTimeframe}/>
       <SideVolumeProfile stockName={stockName}/>
       <CandleMacdChart dateRange={selectedDate} timeframe={selectedTimeframe} />
+
+      <CloseConnection />
       </AlpacaSocket>
+
+      
       
 
     </div>
